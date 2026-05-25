@@ -490,6 +490,38 @@ dreTable.innerHTML=`<thead><tr><th>Linha DRE</th>${{meses.map(m=>'<th>'+m+'</th>
 
 updateDre();
 
+// Tabela Fluxo de Caixa
+const aportesMesFC = [500000,250000,0,0,0,250000,0,0,0,0,0,500000];
+const recebimentosFC = [0,0,117000,117000,117000,138000,138000,138000,165000,165000,165000,190000];
+const totalEntradasFC = aportesMesFC.map((a,i)=>a+recebimentosFC[i]);
+const totalSaidasFC = [20720,68078,275269,68078,74708,191650,74708,222769,82947,233361,89649,265786];
+const saldoFinalFC = [479280,661202,502934,551856,594148,790498,853790,769022,851075,782714,858065,1282278];
+
+const caixaRows = [
+  {{label:'Aportes dos Sócios', values:aportesMesFC, cls:''}},
+  {{label:'Recebimentos de Vendas', values:recebimentosFC, cls:'sub-row'}},
+  {{label:'Total Entradas', values:totalEntradasFC, cls:'total-row', bold:true}},
+  {{label:'Total Saídas', values:totalSaidasFC.map(v=>-v), cls:'sub-row neg'}},
+  {{label:'Saldo Final de Caixa', values:saldoFinalFC, cls:'total-row', bold:true}},
+];
+const caixaTable = document.getElementById('caixa-table');
+const totalAportes = aportesMesFC.reduce((a,b)=>a+b,0);
+const totalReceb = recebimentosFC.reduce((a,b)=>a+b,0);
+const totalEntradas = totalEntradasFC.reduce((a,b)=>a+b,0);
+const totalSaidasAnual = totalSaidasFC.reduce((a,b)=>a+b,0);
+const saldoFinal = saldoFinalFC[11];
+const anuais = [totalAportes, totalReceb, totalEntradas, -totalSaidasAnual, saldoFinal];
+caixaTable.innerHTML = `<thead><tr><th>Item</th>${{meses.map(m=>'<th>'+m+'</th>').join('')}}<th>TOTAL</th></tr></thead><tbody>
+${{caixaRows.map((row,ri)=>{{
+  const anual = anuais[ri];
+  return `<tr class="${{row.cls||''}}">
+    <td style="${{row.bold?'font-weight:700':''}}">${{row.label}}</td>
+    ${{row.values.map(v=>`<td class="${{v<0?'neg':v>0?'pos':''}}">${{v===0?'-':(v>=0?'':'-')+fmtBR(v)}}</td>`).join('')}}
+    <td class="${{anual<0?'neg':anual>0?'pos':''}}" style="font-weight:700">${{anual===0?'-':(anual>=0?'':'-')+fmtBR(anual)}}</td>
+  </tr>`;
+}}).join('')}}
+</tbody>`;
+
 new Chart(document.getElementById('chartCaixa'),{{type:'line',data:{{labels:meses,datasets:[{{label:'Saldo Final',data:saldoCaixa,borderColor:'#c8f542',backgroundColor:'rgba(200,245,66,0.07)',borderWidth:2,tension:0.3,fill:true,pointRadius:4,pointBackgroundColor:'#c8f542'}}]}},options:{{...defaults,scales:{{...defaults.scales,y:{{...defaults.scales.y,ticks:{{...defaults.scales.y.ticks,callback:v=>'R$'+(v/1000).toFixed(0)+'k'}}}}}}}}}});
 new Chart(document.getElementById('chartAportes'),{{type:'bar',data:{{labels:meses,datasets:[
   {{label:'Aportes',data:aportesMes,backgroundColor:'rgba(200,245,66,0.2)',borderColor:'#c8f542',borderWidth:1.5,borderRadius:3}},
