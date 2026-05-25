@@ -6,7 +6,7 @@ Lê DRE_FEHMA_2025_v30.xlsx do OneDrive e gera index.html atualizado
 import os
 import json
 import requests
-from datetime import datetime
+datetime.now().astimezone(__import__("zoneinfo").ZoneInfo("America/Fortaleza")).strftime("%d/%m/%Y às %H:%M"),
 
 # ── Configurações ──────────────────────────────────────────────
 CLIENT_ID     = os.environ["AZURE_CLIENT_ID"]
