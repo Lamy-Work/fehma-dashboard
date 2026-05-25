@@ -24,7 +24,6 @@ def get_access_token():
     url = f"https://login.microsoftonline.com/common/oauth2/v2.0/token"
     data = {
         "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
         "refresh_token": REFRESH_TOKEN,
         "grant_type": "refresh_token",
         "scope": "https://graph.microsoft.com/Files.Read offline_access",
