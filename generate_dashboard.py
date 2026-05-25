@@ -381,6 +381,15 @@ def generate_html(data):
       <div class="chart-wrap tall"><canvas id="chartAportes"></canvas></div>
     </div>
   </div>
+
+  <div class="chart-box" style="margin-top:16px;">
+    <div class="chart-title">Fluxo de Caixa Mensal — Entradas e Saídas</div>
+    <div class="chart-subtitle">Valores em R$ · Prazo de pagamento 30/60 dias aplicado</div>
+    <div style="overflow-x:auto;">
+      <table class="data-table" id="caixa-table"></table>
+    </div>
+  </div>
+
 </div>
 
 </div><!-- end content -->
