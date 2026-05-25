@@ -40,65 +40,75 @@ def get_access_token():
 # ── 2. Ler dados do Excel via Graph API ────────────────────────
 def read_excel_data(token):
     headers = {"Authorization": f"Bearer {token}"}
-    base = f"https://graph.microsoft.com/v1.0/drives/{DRIVE_ID}/items/{DRIVE_ITEM_ID}/workbook"
+    
+    # Baixa o arquivo Excel completo como stream
+    url = f"https://graph.microsoft.com/v1.0/drives/{DRIVE_ID}/items/{DRIVE_ITEM_ID}/content"
+    r = requests.get(url, headers=headers)
+    r.raise_for_status()
+    
+    import io
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(r.content), data_only=True)
+    
+    def get_sheet_data(sheet_name):
+        ws = wb[sheet_name]
+        rows = []
+        for row in ws.iter_rows(values_only=True):
+            rows.append(list(row))
+        return rows
 
-    def get_range(sheet, range_addr):
-        url = f"{base}/worksheets('{sheet}')/range(address='{range_addr}')/values"
-        r = requests.get(url, headers=headers)
-        if r.status_code != 200:
-            print(f"Erro ao ler {sheet}!{range_addr}: {r.text}")
-            return []
-        return r.json().get("value", [])
+    def find_row_by_label(rows, label):
+        """Encontra linha pelo texto na primeira coluna (ignora maiúsculas/espaços)"""
+        label_clean = label.strip().upper()
+        for row in rows:
+            if row and row[0] and str(row[0]).strip().upper() == label_clean:
+                return row
+        return None
 
-    # Busca receita (RECEITA TOTAL) e linhas principais
-    # A API retorna valores, precisamos buscar por linha correta
-    # Tentamos ranges amplos e filtramos pela linha correta
+    def extract_12_months(row, max_cols=30):
+        """Extrai 12 valores numéricos consecutivos de uma linha"""
+        nums = []
+        for val in row[1:max_cols]:
+            try:
+                if val is None or val == "" or val == "-":
+                    continue
+                f = float(str(val).replace(",","").replace("(","").replace(")",""))
+                if str(val).startswith("(") or (isinstance(val, str) and val.startswith("(")):
+                    f = -f
+                nums.append(f)
+            except:
+                continue
+            if len(nums) == 12:
+                break
+        return nums if len(nums) == 12 else nums + [0]*(12-len(nums))
 
-    def find_row(sheet, search_col, search_val, data_col_start, data_col_end, max_rows=100):
-        """Varre coluna search_col até achar search_val, retorna a linha de dados"""
-        for row in range(1, max_rows):
-            cell = get_range(sheet, f"{search_col}{row}:{search_col}{row}")
-            if cell and cell[0] and str(cell[0][0]).strip().upper() == search_val.upper():
-                data = get_range(sheet, f"{data_col_start}{row}:{data_col_end}{row}")
-                return data
-        return []
+    # Lê aba DRE 2025
+    dre_rows = get_sheet_data("DRE 2025")
+    
+    # Lê aba Fluxo de Caixa
+    fc_rows = get_sheet_data("Fluxo de Caixa")
 
-    # Busca direta por linhas conhecidas do Excel
-    receita_raw = get_range("DRE 2025", "C4:N4")   # RECEITA TOTAL
-    marg_raw    = get_range("DRE 2025", "C33:N33")  # MARGEM DE CONTRIBUIÇÃO
-    ebitda_raw  = get_range("DRE 2025", "C68:N68")  # LUCRO OPERACIONAL (EBITDA)
-    lucro_raw   = get_range("DRE 2025", "C83:N83")  # LUCRO LÍQUIDO
-    caixa_raw   = get_range("Fluxo de Caixa", "C16:N16")  # SALDO FINAL DE CAIXA
+    # Busca as linhas pelo nome exato
+    receita_row = find_row_by_label(dre_rows, "RECEITA TOTAL") or                   find_row_by_label(dre_rows, "RECEITA BRUTA")
+    marg_row    = find_row_by_label(dre_rows, "MARGEM DE CONTRIBUIÇÃO")
+    ebitda_row  = find_row_by_label(dre_rows, "LUCRO OPERACIONAL (EBITDA)") or                   find_row_by_label(dre_rows, "EBITDA")
+    lucro_row   = find_row_by_label(dre_rows, "LUCRO LÍQUIDO") or                   find_row_by_label(dre_rows, "LUCRO LIQUIDO")
+    caixa_row   = find_row_by_label(fc_rows, "SALDO FINAL DE CAIXA")
 
-    def flatten(raw):
-        if raw and len(raw) > 0:
-            result = []
-            for v in raw[0]:
-                try:
-                    if v in (None, "", "-"):
-                        result.append(0)
-                    else:
-                        # Remove parênteses de negativos: (1234) -> -1234
-                        s = str(v).replace(",", "").replace("(", "-").replace(")", "")
-                        result.append(float(s))
-                except:
-                    result.append(0)
-            return result
-        return [0]*12
+    receita_vals = extract_12_months(receita_row) if receita_row else []
+    marg_vals    = extract_12_months(marg_row)    if marg_row    else []
+    ebitda_vals  = extract_12_months(ebitda_row)  if ebitda_row  else []
+    lucro_vals   = extract_12_months(lucro_row)   if lucro_row   else []
+    caixa_vals   = extract_12_months(caixa_row)   if caixa_row   else []
 
-    receita_vals = flatten(receita_raw)
-    lucro_vals   = flatten(lucro_raw)
-    ebitda_vals  = flatten(ebitda_raw)
-    marg_vals    = flatten(marg_raw)
-    caixa_vals   = flatten(caixa_raw)
+    print(f"   Receita[0]: {receita_vals[0] if receita_vals else 'NÃO ENCONTRADO'}")
+    print(f"   Margem[0]:  {marg_vals[0] if marg_vals else 'NÃO ENCONTRADO'}")
+    print(f"   EBITDA[0]:  {ebitda_vals[0] if ebitda_vals else 'NÃO ENCONTRADO'}")
+    print(f"   Lucro[0]:   {lucro_vals[0] if lucro_vals else 'NÃO ENCONTRADO'}")
 
-    # Log para debug
-    print(f"   Receita[0]: {receita_vals[0] if receita_vals else 'N/A'}")
-    print(f"   Lucro[0]: {lucro_vals[0] if lucro_vals else 'N/A'}")
-
-    # Se os dados vieram zerados, usa fallback com valores conhecidos da DRE v30
+    # Fallback com valores da DRE v30 caso a leitura falhe
     if not receita_vals or sum(abs(v) for v in receita_vals) < 1000:
-        print("   ⚠️ Usando fallback — dados não encontrados nas células esperadas")
+        print("   ⚠️ Fallback ativado — usando valores fixos da DRE v30")
         receita_vals = [117000,117000,117000,138000,138000,138000,165000,165000,165000,190000,190000,190000]
         marg_vals    = [42740,42740,42740,50771,50771,50771,61095,61095,61095,70655,70655,70655]
         ebitda_vals  = [-151,-151,-151,5321,5321,5321,12642,12642,12642,20347,20347,5217]
