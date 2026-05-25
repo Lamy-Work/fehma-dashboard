@@ -447,21 +447,38 @@ function showPage(id,el){{
 
 # ── 4. Deploy no Netlify ───────────────────────────────────────
 def deploy_netlify(html_content):
-    import zipfile, io
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr('index.html', html_content)
-    zip_buffer.seek(0)
-
-    headers = {
+    import hashlib
+    # Calcula hash do arquivo
+    digest = hashlib.sha1(html_content.encode()).hexdigest()
+    
+    headers_auth = {
         "Authorization": f"Bearer {NETLIFY_TOKEN}",
-        "Content-Type": "application/zip",
+        "Content-Type": "application/json",
     }
+    
+    # Passo 1: criar deploy com lista de arquivos
     url = f"https://api.netlify.com/api/v1/sites/{NETLIFY_SITE}/deploys"
-    r = requests.post(url, headers=headers, data=zip_buffer.read())
+    payload = {
+        "files": {"/index.html": digest},
+        "async": False
+    }
+    r = requests.post(url, headers=headers_auth, json=payload)
     r.raise_for_status()
     deploy = r.json()
-    print(f"✅ Deploy concluído: {deploy.get('deploy_ssl_url') or deploy.get('url')}")
+    deploy_id = deploy["id"]
+    required = deploy.get("required", [])
+    
+    # Passo 2: fazer upload do arquivo se necessário
+    if digest in required or required:
+        upload_headers = {
+            "Authorization": f"Bearer {NETLIFY_TOKEN}",
+            "Content-Type": "text/html; charset=UTF-8",
+        }
+        upload_url = f"https://api.netlify.com/api/v1/deploys/{deploy_id}/files/index.html"
+        ru = requests.put(upload_url, headers=upload_headers, data=html_content.encode("utf-8"))
+        ru.raise_for_status()
+    
+    print(f"✅ Deploy concluído: https://{deploy.get('subdomain', NETLIFY_SITE)}.netlify.app")
     return deploy
 
 # ── Main ───────────────────────────────────────────────────────
