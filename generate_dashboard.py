@@ -65,16 +65,25 @@ def read_excel_data(token):
                 return row
         return None
 
-    def extract_12_months(row, max_cols=30):
-        """Extrai 12 valores numéricos consecutivos de uma linha"""
+    def extract_12_months(row, max_cols=50):
+        """Extrai 12 valores monetários de uma linha.
+        Ignora valores entre -2 e 2 (são percentuais como 1.0, 0.8, -0.07)
+        e busca valores absolutos maiores (receita, custos, etc.)
+        """
         nums = []
         for val in row[1:max_cols]:
             try:
                 if val is None or val == "" or val == "-":
                     continue
-                f = float(str(val).replace(",","").replace("(","").replace(")",""))
-                if str(val).startswith("(") or (isinstance(val, str) and val.startswith("(")):
+                # Converte para float
+                s = str(val)
+                negative = s.startswith("(") and s.endswith(")")
+                f = float(s.replace(",","").replace("(","").replace(")",""))
+                if negative:
                     f = -f
+                # Ignora percentuais (valores entre -2 e 2)
+                if -2 < f < 2:
+                    continue
                 nums.append(f)
             except:
                 continue
