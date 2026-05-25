@@ -6,7 +6,7 @@ Lê DRE_FEHMA_2025_v30.xlsx do OneDrive e gera index.html atualizado
 import os
 import json
 import requests
-datetime.now().astimezone(__import__("zoneinfo").ZoneInfo("America/Fortaleza")).strftime("%d/%m/%Y às %H:%M"),
+from datetime import datetime
 
 # ── Configurações ──────────────────────────────────────────────
 CLIENT_ID     = os.environ["AZURE_CLIENT_ID"]
@@ -130,7 +130,7 @@ def read_excel_data(token):
         "ebitda":         ebitda_vals,
         "margem_contrib": marg_vals,
         "saldo_caixa":    caixa_vals,
-        "updated_at":     datetime.now().strftime("%d/%m/%Y às %H:%M"),
+        "updated_at":     datetime.now().astimezone(__import__("zoneinfo").ZoneInfo("America/Fortaleza")).strftime("%d/%m/%Y às %H:%M"),
     }
 
 # ── 3. Gerar HTML com dados atualizados ───────────────────────
