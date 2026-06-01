@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FEHMA · DRE Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg:      #111214;
+    --card:    #1a1c1f;
+    --border:  #2a2d33;
+    --green:   #c8ff00;
+    --teal:    #2dffb8;
+    --orange:  #ffb347;
+    --red:     #ff6b6b;
+    --muted:   #6b7280;
+    --text:    #e2e8f0;
+    --font:    'Courier New', Courier, monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font); font-size:13px; }
+
+  /* Header */
+  .header { background:#0d0f11; border-bottom:1px solid var(--border); padding:10px 20px;
+             display:flex; align-items:center; justify-content:space-between; }
+  .logo   { font-size:22px; font-weight:900; letter-spacing:1px; color:var(--green); }
+  .logo span { color:#4a90e2; }
+  .chip   { background:#1e2126; border:1px solid var(--border); border-radius:4px;
+             padding:2px 8px; font-size:11px; color:var(--muted); margin-left:8px; }
+  .ts     { font-size:11px; color:var(--muted); }
+  .ts strong { color:var(--text); }
+
+  /* Tabs */
+  .tabs   { display:flex; gap:0; border-bottom:1px solid var(--border); background:#0d0f11;
+             padding:0 20px; }
+  .tab    { padding:12px 18px; cursor:pointer; font-size:12px; letter-spacing:1px;
+             color:var(--muted); border-bottom:2px solid transparent; transition:.2s; }
+  .tab.active { color:var(--green); border-bottom-color:var(--green); }
+  .tab:hover  { color:var(--text); }
+
+  /* Content panels */
+  .panel  { display:none; padding:16px 20px; }
+  .panel.active { display:block; }
+
+  /* KPI cards */
+  .kpi-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; margin-bottom:16px; }
+  .kpi-card { background:var(--card); border:1px solid var(--border); border-radius:6px;
+               padding:14px 16px; }
+  .kpi-label { font-size:10px; letter-spacing:1px; color:var(--muted); text-transform:uppercase; }
+  .kpi-val   { font-size:24px; font-weight:900; color:var(--green); margin:6px 0 2px; line-height:1; }
+  .kpi-sub   { font-size:11px; color:var(--muted); }
+  .kpi-tag   { font-size:10px; margin-top:4px; }
+
+  /* Charts row */
+  .chart-row { display:grid; grid-template-columns:2fr 1fr; gap:10px; margin-bottom:16px; }
+  .chart-card { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:16px; }
+  .chart-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; }
+  .chart-title  { font-size:13px; font-weight:700; }
+  .chart-sub    { font-size:10px; color:var(--muted); margin-top:2px; }
+  .badge        { background:#1e2126; border:1px solid var(--border); border-radius:4px;
+                   padding:2px 7px; font-size:10px; color:var(--teal); }
+
+  /* Waterfall */
+  .section-title { font-size:11px; letter-spacing:2px; color:var(--muted); text-transform:uppercase;
+                    margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .section-title::before { content:''; width:8px; height:8px; border-radius:50%;
+                             background:var(--green); display:inline-block; }
+  .wf-row      { display:grid; grid-template-columns:220px 1fr 130px 60px;
+                  align-items:center; gap:8px; padding:5px 0;
+                  border-bottom:1px solid #1e2126; }
+  .wf-total    { background:#161820; border-radius:4px; padding:6px 8px; }
+  .wf-label    { font-size:12px; }
+  .wf-total .wf-label { font-weight:700; color:var(--text); }
+  .wf-bar-wrap { height:16px; background:#1e2126; border-radius:2px; overflow:hidden; }
+  .wf-bar      { height:100%; border-radius:2px; transition:width .4s; }
+  .wf-val      { font-size:12px; text-align:right; font-weight:700; }
+  .wf-pct      { font-size:11px; color:var(--muted); text-align:right; }
+  .wf-total .wf-pct { color:var(--teal); }
+
+  /* DRE Mensal table */
+  .table-wrap { overflow-x:auto; }
+  table    { width:100%; border-collapse:collapse; font-size:11px; }
+  th       { background:#161820; color:var(--muted); padding:8px 6px; text-align:right;
+              border-bottom:2px solid var(--border); white-space:nowrap; }
+  th:first-child { text-align:left; position:sticky; left:0; background:#161820; z-index:2; }
+  td       { padding:5px 6px; border-bottom:1px solid #1e2126; }
+  td.num   { text-align:right; font-variant-numeric:tabular-nums; }
+  td.ann   { color:var(--teal); font-weight:700; }
+  td.aporte { color:var(--orange); }
+  td.row-label { position:sticky; left:0; background:var(--card); z-index:1; white-space:nowrap; }
+  td.row-labelbold { font-weight:700; position:sticky; left:0; background:#161820; z-index:1; white-space:nowrap; }
+  .dre-total td { background:#161820; font-weight:700; }
+  .aporte-row td { color:var(--orange); }
+  tr:hover td { background:#1d2025; }
+
+  /* Footnotes */
+  .footnotes { margin-top:16px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .fn        { background:var(--card); border:1px solid var(--border); border-radius:6px;
+                padding:10px 14px; font-size:11px; color:var(--muted); }
+  .fn strong { color:var(--text); }
+
+  /* Cash section */
+  .cash-kpis { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <div class="logo">FDC<span>/</span>FEHMA</div>
+    <span class="chip">DRE v30</span>
+    <span class="chip">FEHMA Participações e Distribuição Ltda</span>
+  </div>
+  <div class="ts">Atualizado em: <strong>01/06/2026 às 15:53</strong></div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('visao')">VISÃO GERAL</div>
+  <div class="tab" onclick="showTab('mensal')">DRE MENSAL</div>
+  <div class="tab" onclick="showTab('fluxo')">FLUXO DE CAIXA</div>
+</div>
+
+<!-- ═══════════════════════════════════════ VISÃO GERAL ═══════════════════════════════ -->
+<div id="panel-visao" class="panel active">
+
+  <div class="kpi-grid">
+    <div class="kpi-card" style="border-top:2px solid var(--green)">
+      <div class="kpi-label">Receita Total Anual</div>
+      <div class="kpi-val">R$ 1.830.000</div>
+      <div class="kpi-sub">projetado 2025</div>
+      <div class="kpi-tag" style="color:var(--teal)">100%</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Margem de Contribuição</div>
+      <div class="kpi-val">36.9%</div>
+      <div class="kpi-sub">R$ 675.785/ano</div>
+      <div class="kpi-tag" style="color:var(--muted)">após custos variáveis</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">EBITDA</div>
+      <div class="kpi-val">5.4%</div>
+      <div class="kpi-sub">R$ 99.349/ano</div>
+      <div class="kpi-tag" style="color:var(--muted)">operacional</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Lucro Líquido</div>
+      <div class="kpi-val">2.0%</div>
+      <div class="kpi-sub">R$ 36.985/ano</div>
+      <div class="kpi-tag" style="color:#4aff91">positivo</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">CMV Médio</div>
+      <div class="kpi-val">42.4%</div>
+      <div class="kpi-sub">ponderado portfólio</div>
+      <div class="kpi-tag" style="color:var(--red)">risco mel/própolis</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Receita Online</div>
+      <div class="kpi-val">20%</div>
+      <div class="kpi-sub">R$ 366.000/ano</div>
+      <div class="kpi-tag" style="color:var(--muted)">80% offline</div>
+    </div>
+  </div>
+
+  <div class="chart-row">
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Receita Mensal vs. Lucro Líquido</div>
+          <div class="chart-sub">Receita · Margem de Contribuição · Lucro Líquido</div>
+        </div>
+        <span class="badge">12 meses</span>
+      </div>
+      <canvas id="barChart" height="180"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header">
+        <div>
+          <div class="chart-title">Estrutura de Custos Anual</div>
+          <div class="chart-sub">Decomposição proporcional do faturamento</div>
+        </div>
+        <span class="badge">% da Receita</span>
+      </div>
+      <canvas id="donutChart" height="180"></canvas>
+    </div>
+  </div>
+
+  <div class="section-title">CASCATA DE RESULTADOS — DRE ANUAL CONSOLIDADO</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:16px;">
+    
+        <div class="wf-row">
+          <span class="wf-label">Receita Bruta</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:100.0%;background:#4aff91"></div></div>
+          <span class="wf-val" style="color:#4aff91">R$ 1.830.000</span>
+          <span class="wf-pct">+100%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Impostos s/ Receita</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:7.0%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 127.917</span>
+          <span class="wf-pct">-7.0%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) CMV</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:42.4%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 775.378</span>
+          <span class="wf-pct">-42.4%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Fretes</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:6.2%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 113.460</span>
+          <span class="wf-pct">-6.2%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Custos Online</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:1.5%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 27.660</span>
+          <span class="wf-pct">-1.5%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Desp. Comerciais Var.</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:6.0%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 109.800</span>
+          <span class="wf-pct">6.0%</span>
+        </div>
+        <div class="wf-row wf-total">
+          <span class="wf-label">= Margem de Contribuição</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:36.9%;background:#4aff91"></div></div>
+          <span class="wf-val" style="color:#4aff91">R$ 675.785</span>
+          <span class="wf-pct">+36.9%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Marketing</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:9.5%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 174.069</span>
+          <span class="wf-pct">-9.5%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Diversas</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:3.0%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 55.317</span>
+          <span class="wf-pct">-3.0%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Pessoal</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:12.8%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 233.770</span>
+          <span class="wf-pct">-12.8%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Despesas Gerais</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:6.2%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 113.280</span>
+          <span class="wf-pct">-6.2%</span>
+        </div>
+        <div class="wf-row wf-total">
+          <span class="wf-label">= EBITDA</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:5.4%;background:#4aff91"></div></div>
+          <span class="wf-val" style="color:#4aff91">R$ 99.349</span>
+          <span class="wf-pct">+5.4%</span>
+        </div>
+        <div class="wf-row">
+          <span class="wf-label">(-) Financeiro + Impostos</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:3.4%;background:#e05252"></div></div>
+          <span class="wf-val" style="color:#ff6b6b">-R$ 62.364</span>
+          <span class="wf-pct">-3.4%</span>
+        </div>
+        <div class="wf-row wf-total">
+          <span class="wf-label">= Lucro Líquido</span>
+          <div class="wf-bar-wrap"><div class="wf-bar" style="width:2.0%;background:#4aff91"></div></div>
+          <span class="wf-val" style="color:#4aff91">R$ 36.985</span>
+          <span class="wf-pct">+2.0%</span>
+        </div>
+  </div>
+
+  <div class="chart-card" style="margin-top:16px;">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Evolução do Lucro Líquido</div>
+        <div class="chart-sub">mensal · Break-even a partir do mês 4</div>
+      </div>
+      <span class="badge">mensal</span>
+    </div>
+    <div style="height:130px;position:relative;">
+      <canvas id="lucroChart"></canvas>
+    </div>
+  </div>
+
+  <!-- KPIs secundários -->
+  <div style="margin-top:16px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+
+    <div class="kpi-card">
+      <div class="kpi-label">Receita Média Mensal</div>
+      <div class="kpi-val" style="font-size:18px;">R$ 152.500</div>
+      <div class="kpi-sub">faturamento médio/mês</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Custo Fixo Mensal</div>
+      <div class="kpi-val" style="font-size:18px;">R$ 28.921</div>
+      <div class="kpi-sub">pessoal + desp. gerais</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Ponto de Equilíbrio</div>
+      <div class="kpi-val" style="font-size:18px;">R$ 130.080</div>
+      <div class="kpi-sub">receita mínima/mês</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Mês do Break-even</div>
+      <div class="kpi-val" style="font-size:18px;color:var(--teal)">Mês 4</div>
+      <div class="kpi-sub">primeiro mês positivo</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Resultado Mês 1</div>
+      <div class="kpi-val" style="font-size:18px;color:var(--red)">-R$ 4.255</div>
+      <div class="kpi-sub">lucro líquido jan</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Carga Tributária Total</div>
+      <div class="kpi-val" style="font-size:18px;">10.1%</div>
+      <div class="kpi-sub">impostos s/ receita + IR/CSLL</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Desp. Pessoal Anual</div>
+      <div class="kpi-val" style="font-size:18px;">R$ 233.770</div>
+      <div class="kpi-sub">12.8% da receita</div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-label">Marketing Anual</div>
+      <div class="kpi-val" style="font-size:18px;">R$ 174.069</div>
+      <div class="kpi-sub">9.5% da receita</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ DRE MENSAL ════════════════════════════════ -->
+<div id="panel-mensal" class="panel">
+  <div class="section-title" style="margin-bottom:12px;">DRE MENSALIZADO — FEHMA 2025</div>
+  <div class="table-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1px;">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width:220px;">Descrição</th>
+          <th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th><th>Mai</th><th>Jun</th><th>Jul</th><th>Ago</th><th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+          <th style="color:var(--teal);">ANUAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="dre-row"><td class="row-label">RECEITA TOTAL</td><td class="num">R$ 117.000</td><td class="num">R$ 117.000</td><td class="num">R$ 117.000</td><td class="num">R$ 138.000</td><td class="num">R$ 138.000</td><td class="num">R$ 138.000</td><td class="num">R$ 165.000</td><td class="num">R$ 165.000</td><td class="num">R$ 165.000</td><td class="num">R$ 190.000</td><td class="num">R$ 190.000</td><td class="num">R$ 190.000</td><td class="num ann">R$ 1.830.000</td></tr>
+<tr class="dre-row"><td class="row-label">  Receita Offline</td><td class="num">R$ 93.600</td><td class="num">R$ 93.600</td><td class="num">R$ 93.600</td><td class="num">R$ 110.400</td><td class="num">R$ 110.400</td><td class="num">R$ 110.400</td><td class="num">R$ 132.000</td><td class="num">R$ 132.000</td><td class="num">R$ 132.000</td><td class="num">R$ 152.000</td><td class="num">R$ 152.000</td><td class="num">R$ 152.000</td><td class="num ann">R$ 1.464.000</td></tr>
+<tr class="dre-row"><td class="row-label">  Receita Online</td><td class="num">R$ 23.400</td><td class="num">R$ 23.400</td><td class="num">R$ 23.400</td><td class="num">R$ 27.600</td><td class="num">R$ 27.600</td><td class="num">R$ 27.600</td><td class="num">R$ 33.000</td><td class="num">R$ 33.000</td><td class="num">R$ 33.000</td><td class="num">R$ 38.000</td><td class="num">R$ 38.000</td><td class="num">R$ 38.000</td><td class="num ann">R$ 366.000</td></tr>
+<tr class="dre-row dre-total"><td class="row-labelbold">RECEITA BRUTA</td><td class="num">R$ 117.000</td><td class="num">R$ 117.000</td><td class="num">R$ 117.000</td><td class="num">R$ 138.000</td><td class="num">R$ 138.000</td><td class="num">R$ 138.000</td><td class="num">R$ 165.000</td><td class="num">R$ 165.000</td><td class="num">R$ 165.000</td><td class="num">R$ 190.000</td><td class="num">R$ 190.000</td><td class="num">R$ 190.000</td><td class="num ann">R$ 1.830.000</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Impostos s/ Receita</td><td class="num">-R$ 8.178</td><td class="num">-R$ 8.178</td><td class="num">-R$ 8.178</td><td class="num">-R$ 9.646</td><td class="num">-R$ 9.646</td><td class="num">-R$ 9.646</td><td class="num">-R$ 11.534</td><td class="num">-R$ 11.534</td><td class="num">-R$ 11.534</td><td class="num">-R$ 13.281</td><td class="num">-R$ 13.281</td><td class="num">-R$ 13.281</td><td class="num ann">-R$ 127.917</td></tr>
+<tr class="dre-row"><td class="row-label">(-) CMV</td><td class="num">-R$ 49.573</td><td class="num">-R$ 49.573</td><td class="num">-R$ 49.573</td><td class="num">-R$ 58.471</td><td class="num">-R$ 58.471</td><td class="num">-R$ 58.471</td><td class="num">-R$ 69.911</td><td class="num">-R$ 69.911</td><td class="num">-R$ 69.911</td><td class="num">-R$ 80.504</td><td class="num">-R$ 80.504</td><td class="num">-R$ 80.504</td><td class="num ann">-R$ 775.378</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Fretes</td><td class="num">-R$ 7.254</td><td class="num">-R$ 7.254</td><td class="num">-R$ 7.254</td><td class="num">-R$ 8.556</td><td class="num">-R$ 8.556</td><td class="num">-R$ 8.556</td><td class="num">-R$ 10.230</td><td class="num">-R$ 10.230</td><td class="num">-R$ 10.230</td><td class="num">-R$ 11.780</td><td class="num">-R$ 11.780</td><td class="num">-R$ 11.780</td><td class="num ann">-R$ 113.460</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Custos Online</td><td class="num">-R$ 2.234</td><td class="num">-R$ 2.234</td><td class="num">-R$ 2.234</td><td class="num">-R$ 2.276</td><td class="num">-R$ 2.276</td><td class="num">-R$ 2.276</td><td class="num">-R$ 2.330</td><td class="num">-R$ 2.330</td><td class="num">-R$ 2.330</td><td class="num">-R$ 2.380</td><td class="num">-R$ 2.380</td><td class="num">-R$ 2.380</td><td class="num ann">-R$ 27.660</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Desp. Comerciais Var.</td><td class="num">R$ 7.020</td><td class="num">R$ 7.020</td><td class="num">R$ 7.020</td><td class="num">R$ 8.280</td><td class="num">R$ 8.280</td><td class="num">R$ 8.280</td><td class="num">R$ 9.900</td><td class="num">R$ 9.900</td><td class="num">R$ 9.900</td><td class="num">R$ 11.400</td><td class="num">R$ 11.400</td><td class="num">R$ 11.400</td><td class="num ann">R$ 109.800</td></tr>
+<tr class="dre-row dre-total"><td class="row-labelbold">= MARGEM DE CONTRIBUIÇÃO</td><td class="num">R$ 42.740</td><td class="num">R$ 42.740</td><td class="num">R$ 42.740</td><td class="num">R$ 50.771</td><td class="num">R$ 50.771</td><td class="num">R$ 50.771</td><td class="num">R$ 61.095</td><td class="num">R$ 61.095</td><td class="num">R$ 61.095</td><td class="num">R$ 70.655</td><td class="num">R$ 70.655</td><td class="num">R$ 70.655</td><td class="num ann">R$ 675.785</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Marketing</td><td class="num">-R$ 11.683</td><td class="num">-R$ 11.683</td><td class="num">-R$ 11.683</td><td class="num">-R$ 13.613</td><td class="num">-R$ 13.613</td><td class="num">-R$ 13.613</td><td class="num">-R$ 15.810</td><td class="num">-R$ 15.810</td><td class="num">-R$ 15.810</td><td class="num">-R$ 16.917</td><td class="num">-R$ 16.917</td><td class="num">-R$ 16.917</td><td class="num ann">-R$ 174.069</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Diversas</td><td class="num">-R$ 3.548</td><td class="num">-R$ 3.548</td><td class="num">-R$ 3.548</td><td class="num">-R$ 4.176</td><td class="num">-R$ 4.176</td><td class="num">-R$ 4.176</td><td class="num">-R$ 4.984</td><td class="num">-R$ 4.984</td><td class="num">-R$ 4.984</td><td class="num">-R$ 5.731</td><td class="num">-R$ 5.731</td><td class="num">-R$ 5.731</td><td class="num ann">-R$ 55.317</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Pessoal</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 18.220</td><td class="num">-R$ 33.350</td><td class="num ann">-R$ 233.770</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Despesas Gerais</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num">-R$ 9.440</td><td class="num ann">-R$ 113.280</td></tr>
+<tr class="dre-row dre-total"><td class="row-labelbold">= EBITDA</td><td class="num">-R$ 151</td><td class="num">-R$ 151</td><td class="num">-R$ 151</td><td class="num">R$ 5.321</td><td class="num">R$ 5.321</td><td class="num">R$ 5.321</td><td class="num">R$ 12.642</td><td class="num">R$ 12.642</td><td class="num">R$ 12.642</td><td class="num">R$ 20.347</td><td class="num">R$ 20.347</td><td class="num">R$ 5.217</td><td class="num ann">R$ 99.349</td></tr>
+<tr class="dre-row"><td class="row-label">(-) Financeiro + Impostos</td><td class="num">-R$ 4.104</td><td class="num">-R$ 4.104</td><td class="num">-R$ 4.104</td><td class="num">-R$ 4.750</td><td class="num">-R$ 4.750</td><td class="num">-R$ 4.750</td><td class="num">-R$ 5.582</td><td class="num">-R$ 5.582</td><td class="num">-R$ 5.582</td><td class="num">-R$ 6.352</td><td class="num">-R$ 6.352</td><td class="num">-R$ 6.352</td><td class="num ann">-R$ 62.364</td></tr>
+<tr class="dre-row dre-total"><td class="row-labelbold">= LUCRO LÍQUIDO</td><td class="num">-R$ 4.255</td><td class="num">-R$ 4.255</td><td class="num">-R$ 4.255</td><td class="num">R$ 571</td><td class="num">R$ 571</td><td class="num">R$ 571</td><td class="num">R$ 7.060</td><td class="num">R$ 7.060</td><td class="num">R$ 7.060</td><td class="num">R$ 13.995</td><td class="num">R$ 13.995</td><td class="num">-R$ 1.135</td><td class="num ann">R$ 36.985</td></tr>
+
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ FLUXO DE CAIXA ═══════════════════════════ -->
+<div id="panel-fluxo" class="panel">
+  <div class="cash-kpis">
+    <div class="kpi-card" style="border-top:2px solid var(--teal)">
+      <div class="kpi-label">Saldo Final (Dez)</div>
+      <div class="kpi-val" style="font-size:20px;">R$ 1.382.278</div>
+      <div class="kpi-sub">caixa acumulado</div>
+    </div>
+    <div class="kpi-card" style="border-top:2px solid var(--orange)">
+      <div class="kpi-label">Total Aportes dos Sócios</div>
+      <div class="kpi-val" style="font-size:20px;">R$ 1.600.000</div>
+      <div class="kpi-sub">injeção no ano</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Saldo / Aportes</div>
+      <div class="kpi-val" style="font-size:20px;">86%</div>
+      <div class="kpi-sub">retorno sobre aporte</div>
+    </div>
+  </div>
+
+  <div class="chart-card" style="margin-bottom:16px;">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Saldo de Caixa Mensal</div>
+        <div class="chart-sub">Saldo final acumulado por mês</div>
+      </div>
+      <span class="badge">2025</span>
+    </div>
+    <canvas id="saldoChart" height="120"></canvas>
+  </div>
+
+  <div class="table-wrap" style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:1px;">
+    <table>
+      <thead>
+        <tr>
+          <th style="min-width:220px;">Descrição</th>
+          <th>Jan</th><th>Fev</th><th>Mar</th><th>Abr</th><th>Mai</th><th>Jun</th><th>Jul</th><th>Ago</th><th>Set</th><th>Out</th><th>Nov</th><th>Dez</th>
+          <th style="color:var(--teal);">TOTAL</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="dre-row"><td class="row-label">Total Entradas</td><td class="num">R$ 600.000</td><td class="num">R$ 250.000</td><td class="num">R$ 117.000</td><td class="num">R$ 117.000</td><td class="num">R$ 117.000</td><td class="num">R$ 388.000</td><td class="num">R$ 138.000</td><td class="num">R$ 138.000</td><td class="num">R$ 165.000</td><td class="num">R$ 165.000</td><td class="num">R$ 165.000</td><td class="num">R$ 690.000</td><td class="num ann">R$ 3.050.000</td></tr>
+<tr class="dre-row"><td class="row-label">Total Saídas</td><td class="num">-R$ 20.720</td><td class="num">-R$ 68.078</td><td class="num">-R$ 275.269</td><td class="num">-R$ 68.078</td><td class="num">-R$ 74.708</td><td class="num">-R$ 191.650</td><td class="num">-R$ 74.708</td><td class="num">-R$ 222.769</td><td class="num">-R$ 82.946</td><td class="num">-R$ 233.361</td><td class="num">-R$ 89.649</td><td class="num">-R$ 265.786</td><td class="num ann">-R$ 1.667.722</td></tr>
+<tr class="dre-row"><td class="row-label">Resultado do Período</td><td class="num">R$ 579.280</td><td class="num">R$ 181.922</td><td class="num">-R$ 158.269</td><td class="num">R$ 48.922</td><td class="num">R$ 42.292</td><td class="num">R$ 196.350</td><td class="num">R$ 63.292</td><td class="num">-R$ 84.769</td><td class="num">R$ 82.054</td><td class="num">-R$ 68.361</td><td class="num">R$ 75.351</td><td class="num">R$ 424.214</td><td class="num ann">R$ 1.382.278</td></tr>
+<tr class="dre-row"><td class="row-label">Saldo Inicial de Caixa</td><td class="num">R$ 0</td><td class="num">R$ 579.280</td><td class="num">R$ 761.202</td><td class="num">R$ 602.934</td><td class="num">R$ 651.856</td><td class="num">R$ 694.148</td><td class="num">R$ 890.498</td><td class="num">R$ 953.790</td><td class="num">R$ 869.022</td><td class="num">R$ 951.075</td><td class="num">R$ 882.714</td><td class="num">R$ 958.065</td><td class="num ann">R$ 8.794.583</td></tr>
+<tr class="dre-row dre-total"><td class="row-labelbold">SALDO FINAL DE CAIXA</td><td class="num">R$ 579.280</td><td class="num">R$ 761.202</td><td class="num">R$ 602.934</td><td class="num">R$ 651.856</td><td class="num">R$ 694.148</td><td class="num">R$ 890.498</td><td class="num">R$ 953.790</td><td class="num">R$ 869.022</td><td class="num">R$ 951.075</td><td class="num">R$ 882.714</td><td class="num">R$ 958.065</td><td class="num">R$ 1.382.278</td><td class="num ann">R$ 10.176.861</td></tr>
+<tr class="dre-row aporte-row"><td class="row-label">Aporte dos Sócios</td><td class="num aporte">R$ 600.000</td><td class="num aporte">R$ 250.000</td><td class="num aporte">—</td><td class="num aporte">—</td><td class="num aporte">—</td><td class="num aporte">R$ 250.000</td><td class="num aporte">—</td><td class="num aporte">—</td><td class="num aporte">—</td><td class="num aporte">—</td><td class="num aporte">—</td><td class="num aporte">R$ 500.000</td><td class="num ann aporte">R$ 1.600.000</td></tr>
+
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+// ── Tab switching ────────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'fluxo' && !window._saldoDrawn) { drawSaldo(); window._saldoDrawn = true; }
+}
+
+// ── Chart defaults ───────────────────────────────────────────────────────────
+Chart.defaults.color = '#e2e8f0';
+Chart.defaults.font.family = "'Courier New', Courier, monospace";
+Chart.defaults.font.size = 11;
+
+const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const recData  = [117000, 117000, 117000, 138000, 138000, 138000, 165000, 165000, 165000, 190000, 190000, 190000];
+const marData  = [42740, 42740, 42740, 50771, 50771, 50771, 61095, 61095, 61095, 70655, 70655, 70655];
+const lucData  = [-4255, -4255, -4255, 571, 571, 571, 7060, 7060, 7060, 13995, 13995, -1135];
+
+// ── Bar + Line chart ─────────────────────────────────────────────────────────
+new Chart(document.getElementById('barChart'), {
+  type: 'bar',
+  data: {
+    labels: months,
+    datasets: [
+      {
+        label: 'Receita',
+        data: recData,
+        backgroundColor: 'rgba(200,255,0,0.55)',
+        borderColor: '#c8ff00',
+        borderWidth: 1,
+        order: 2
+      },
+      {
+        label: 'Marg.Contrib.',
+        data: marData,
+        backgroundColor: 'rgba(45,255,184,0.45)',
+        borderColor: '#2dffb8',
+        borderWidth: 1,
+        order: 3
+      },
+      {
+        label: 'Lucro Líq.',
+        data: lucData,
+        type: 'line',
+        borderColor: '#ffb347',
+        backgroundColor: 'rgba(255,179,71,0.15)',
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: '#ffb347',
+        tension: 0.3,
+        order: 1,
+        yAxisID: 'y'
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'top', labels: { boxWidth: 12, padding: 12 } } },
+    scales: {
+      x: { grid: { color: '#1e2126' } },
+      y: {
+        grid: { color: '#1e2126' },
+        ticks: {
+          callback: v => 'R$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
+        }
+      }
+    }
+  }
+});
+
+// ── Donut chart ──────────────────────────────────────────────────────────────
+new Chart(document.getElementById('donutChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['CMV', 'Fretes', 'Impostos', 'Comercial+Mkt', 'Desp.Admin', 'Lucro Líq.', 'Outros'],
+    datasets: [{ data: [42.4, 6.2, 7.0, 18.5, 19.0, 2.0, 4.9], backgroundColor: ["#e05252","#e08052","#d4c44a","#4adfb8","#5a6f8a","#4aff91","#2d3748"], borderWidth: 2, borderColor: '#111214' }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { position: 'right', labels: { boxWidth: 10, padding: 8, color: '#e2e8f0',
+        generateLabels: (chart) => {
+          const d = chart.data;
+          return d.labels.map((l,i) => ({
+            text: l + ' (' + d.datasets[0].data[i] + '%)',
+            fillStyle: d.datasets[0].backgroundColor[i],
+            strokeStyle: '#111214', lineWidth: 1,
+            fontColor: '#e2e8f0'
+          }));
+        }
+      } }
+    },
+    cutout: '65%'
+  }
+});
+
+// ── Lucro evolution chart ────────────────────────────────────────────────────
+new Chart(document.getElementById('lucroChart'), {
+  type: 'line',
+  data: {
+    labels: months,
+    datasets: [{
+      label: 'Lucro Líquido',
+      data: lucData,
+      borderColor: '#ffb347',
+      backgroundColor: ctx => {
+        const g = ctx.chart.ctx.createLinearGradient(0,0,0,200);
+        g.addColorStop(0, 'rgba(255,179,71,0.3)');
+        g.addColorStop(1, 'rgba(255,179,71,0.0)');
+        return g;
+      },
+      fill: true,
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: lucData.map(v => v >= 0 ? '#4aff91' : '#ff6b6b'),
+      tension: 0.3
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: '#1e2126' } },
+      y: {
+        grid: { color: '#1e2126' },
+        ticks: { callback: v => 'R$' + (Math.abs(v) >= 1000 ? (v/1000).toFixed(0) + 'k' : v) }
+      }
+    }
+  }
+});
+
+// ── Saldo chart (lazy draw) ──────────────────────────────────────────────────
+function drawSaldo() {
+  const saldos = [579280, 761202, 602934, 651856, 694148, 890498, 953790, 869022, 951075, 882714, 958065, 1382278];
+  new Chart(document.getElementById('saldoChart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Saldo Final',
+        data: saldos,
+        backgroundColor: 'rgba(45,255,184,0.4)',
+        borderColor: '#2dffb8',
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#1e2126' } },
+        y: { grid: { color: '#1e2126' },
+               ticks: { callback: v => 'R$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v) } }
+      }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
